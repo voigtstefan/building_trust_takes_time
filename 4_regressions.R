@@ -1,0 +1,224 @@
+library(tidyverse)
+library(fixest)
+
+regression_sample <- read_csv("data/regression_sample.csv")
+
+# Prepare data ------------------------------------------------------------
+trim <- function(x, cut) {
+  x <- replace(
+    x, x > quantile(x, 1 - cut, na.rm = T), NA
+  )
+  x <- replace(
+    x, x < quantile(x, cut, na.rm = T), NA
+  )
+  return(x)
+}
+
+regression_sample_prepared <- regression_sample |> 
+  # winsorize continous outcome variables 
+  mutate(across(
+    c(inflows, delta, spotvola, spread,
+      balance, balance_past,
+      boundary),
+    ~ trim(., 0.01)
+  )) |>
+  drop_na(delta, spotvola, spread,boundary, median_latency, sd_latency, inflows) |> 
+  # gdax removed margin end of february 2018
+  mutate(margin_trading = if_else(sell_side == "gdax" & ts >= "2018-02-28", FALSE, margin_trading)) |> 
+  # replace missing number of confirmations
+  mutate(
+    no_of_confirmations = replace_na(no_of_confirmations, 3),
+    balance_past = replace_na(balance_past, 0),
+    inflows = inflows * btc_price / 100000,
+    boundary_margin = margin_trading * boundary,
+    boundary_business = business_accounts * boundary,
+    log_inflows = log(1 + inflows),
+    log_balance = log(1 + balance),
+    log_balance_past = log(1 + balance_past),
+    latency_variance = sd_latency ^ 2,
+    latency_variance_std = scale(latency_variance)
+  )
+  
+# Summary statistics ------------------------------------------------------
+regression_sample_prepared |> 
+  select(
+    delta, inflows, spotvola, median_latency, sd_latency, boundary, 
+    balance, balance_past, spread, margin_trading, 
+    business_accounts
+  ) |> pivot_longer(cols = everything()) |> 
+  drop_na() |>
+  group_by(name) |>
+  summarize(
+    mean = mean(value),
+    sd = sd(value),
+    min = min(value),
+    q05 = quantile(value, 0.05),
+    q50 = quantile(value, 0.50),
+    q95 = quantile(value, 0.95),
+    max = max(value),
+    n = n()
+  )
+  
+# label variables
+dictionary <- c(
+  delta = "Price Differences (in %)",
+  inflows = "Exchange Inflows (in 100k USD)",
+  spotvola = "Spot Volatility (in %)",
+  median_latency = "Latency Median (in Min)",
+  sd_latency = "Latency (SD)",
+  latency_variance_std = "Latency Variance (Standardized)",
+  boundary = "Arbitrage Bound (in %)",
+  boundary_margin = "Arbitrage Bound X Margin Trading",
+  boundary_business = "Arbitrage Bound X Business Accounts",
+  spread = "Spread (in %)",
+  balance = "Inventory (in BTC)",
+  net_flow = "Net flow (in BTC)",
+  net_flow_usd = "Net flow (in USD)",
+  no_of_confirmations = "Number of Confirmations",
+  tether = "Tether",
+  margin_trading = "Margin Trading",
+  business_accounts = "Business Accounts",
+  log_balance_past = "Inventory",
+  sell_side = "Exchange Fixed Effects",
+  log_inflows = "Log(Exchange Inflows)"
+)
+
+# Price Differences and Sources of Price Risk -----------------------------
+vcov <- "hetero"
+pd_model1 <- feols(
+  delta ~ boundary + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model2 <- feols(
+  delta ~ spotvola + median_latency + latency_variance_std + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model3 <- feols(
+  delta ~ boundary + boundary_margin + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model4 <- feols(
+  delta ~ boundary + boundary_business + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model5 <- feols(
+  delta ~ boundary + spread + log_balance_past | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model6 <- feols(
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model7 <- feols(
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past + region | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+
+etable(
+  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6, pd_model7,
+  coefstat = "tstat",
+  dict = dictionary
+)
+
+# Cross-Exchange Flows and Arbitrage Opportunities ------------------------
+flows_model1 <- feols(
+  inflows ~ spread | sell_side| delta ~ spotvola +  median_latency + sd_latency,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+flows_model2 <- feols(
+  inflows ~ spread | sell_side| delta ~ boundary,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+flows_model3 <- feols(
+  log_inflows ~ spread | sell_side| delta ~ spotvola +  median_latency + sd_latency,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+flows_model4 <- feols(
+  log_inflows ~ spread | sell_side| delta ~ boundary,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+etable(
+  flows_model1, flows_model2, flows_model3, flows_model4, 
+  coefstat = "tstat",
+  dict = dictionary
+)
+
+# Regions splits ----------------------------------------------------------
+regions <- tribble(
+  ~exchange, ~US, ~Europe,
+  "binance", TRUE, TRUE,
+  "bitfinex", TRUE, TRUE,
+  "bitflyer", TRUE, TRUE,
+  "bitstamp", TRUE, TRUE,
+  "bittrex", TRUE, TRUE,
+  "cex", TRUE, TRUE,
+  "gate", FALSE, TRUE,
+  "gatecoin", FALSE, FALSE,
+  "gdax", TRUE, TRUE,
+  "gemini", TRUE, FALSE,
+  "hitbtc", FALSE, TRUE,
+  "kraken", TRUE, TRUE,
+  "liqui", FALSE, TRUE,
+  "lykke", FALSE, TRUE,
+  "poloniex", TRUE, FALSE,
+  "xbtce", FALSE, TRUE
+)
+
+regression_sample_prepared <- regression_sample_prepared |> 
+  inner_join(regions, by = c("sell_side"="exchange"))
+
+regions_model1 <- feols(
+  delta ~ boundary + spread + log_balance_past | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(US == TRUE)
+)
+
+regions_model2 <- feols(
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(US == TRUE)
+)
+
+regions_model3 <- feols(
+  delta ~ boundary + spread + log_balance_past | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(Europe == TRUE)
+)
+
+regions_model4 <- feols(
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(Europe == TRUE)
+)
+
+etable(
+  regions_model1, regions_model2, regions_model3, regions_model4,
+  coefstat = "tstat",
+  dict = dictionary
+)
