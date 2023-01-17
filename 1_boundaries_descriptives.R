@@ -1,11 +1,12 @@
 library(tidyverse)
 library(lubridate)
-library(scales)
 library(xtable)
 
 source("_config.R")
 
-# construct sample for arbitrage boundaries -------------------------------
+# DO NOT RUN construct sample for arbitrage boundaries ----
+# Final output is available on repo arbitrage_boundaries.rds
+
 ## load exchange characteristics
 exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
   select(exchange, no_of_confirmations) %>%
@@ -50,7 +51,7 @@ boundary_sample <- boundary_sample %>%
   na.omit()
 nrow(boundary_sample)
 
-# compute different arbitrage boundaries ----------------------------------
+# DO NOT RUN compute different arbitrage boundaries ----------------------------------
 ## note: fees enter as fee per byte in satoshi here (different from compute_abitrage.R!)
 compute_boundary <- function(fee, alpha, beta_fee, beta_mempool, beta_constant, 
                              unconfirmed_tx, spotvola, b, gamma = 2, vola = TRUE) {
@@ -79,10 +80,9 @@ arbitrage_boundaries <- boundary_sample %>%
 
 write_rds(arbitrage_boundaries, "data/arbitrage_boundaries.rds")
 
-# Replication starts here ----
+# Replication starts here. Summary statistics ----
 arbitrage_boundaries <- read_rds("data/arbitrage_boundaries.rds")
-# summary statistics ------------------------------------------------------
-## compute summary table
+
 boundaries_table <- arbitrage_boundaries %>%
   mutate(boundary_crra = boundary_crra2 * 10000,
          boundary_0blocks = boundary_0blocks * 10000,
@@ -100,8 +100,8 @@ boundaries_table <- arbitrage_boundaries %>%
   replace_exchange_labels() %>%
   rename(' ' = 'exchange')
 
-colnames(boundaries_table) <- paste0("\\multicolumn{1}{c}{", 
-                                     colnames(boundaries_table), "}")
+#colnames(boundaries_table) <- paste0("\\multicolumn{1}{c}{", 
+#                                     colnames(boundaries_table), "}")
 
 print(xtable(boundaries_table), 
       booktabs = TRUE, 
@@ -114,7 +114,4 @@ print(xtable(boundaries_table),
 tibble(mean = round(mean(boundaries_table$Mean), 2),
                  uncertainty = round(mean(boundaries_table$Uncertainty), 2),
                  security = round(mean(boundaries_table$Security), 2),
-                 blocks_0 = round(mean(arbitrage_boundaries$boundary_0blocks, na.rm = TRUE) * 10000, 2),
-                 blocks_10 = round(mean(arbitrage_boundaries$boundary_10blocks, na.rm = TRUE) * 10000, 2),
-                 effect_per_block_bp = round((blocks_10-blocks_0) / 10, 2),
-                 effect_per_block_percent = round((blocks_10-blocks_0) / blocks_0 * 100, 2))
+                 blocks_0 = round(mean(arbitrage_boundaries$boundary_0blocks, na.rm = TRUE) * 10000, 2))
