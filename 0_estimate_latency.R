@@ -1,13 +1,14 @@
-# duration model estimation  ----------------------------------------------
+# DO NOT RUN duration model estimation  -----
+# Final output is available on repo latency_duration_model_parameters.rds
 library(tidyverse)
 library(lubridate)
 
 source("_config.R")
 
-# read and prepare mempool data ------------------------------------------------
+# DO NOT RUN read and prepare mempool data ------------------------------------------------
 transactions <- list.files("data/transactions", full.names = TRUE)
 
-# estimate parameters of survival regressions -----------------------------
+# DO NOT RUN estimate parameters of survival regressions -----------------------------
 survival_regression <- function(tau, X, distribution = 'exponential', 
                                 standardize = FALSE, hessian = FALSE) {
   ## this function computes MLE survival regression estimates for two models
