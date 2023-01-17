@@ -1,6 +1,6 @@
-Sys.setlocale("LC_ALL", "English")
-Sys.setenv(TZ = 'UTC')
- 
+Sys.setlocale("LC_TIME", "English")
+Sys.setenv(LANG = "en")
+
 ###############################################################################
 # Cutoff dates to align time-series plots
 cutoff <- '2018-01-01-00-00-00'    

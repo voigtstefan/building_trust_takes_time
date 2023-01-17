@@ -1,34 +1,37 @@
 library(tidyverse)
 library(fixest)
 
+source("_config.R")
 regression_sample <- read_csv("data/regression_sample.csv")
-
-# Prepare data ------------------------------------------------------------
-trim <- function(x, cut) {
+legacy_sample <- haven::read_dta("data/flow_and_balance_regression_sample.dta")
+# Prepare regression sample ----
+winsorize <- function(x, cut) {
   x <- replace(
-    x, x > quantile(x, 1 - cut, na.rm = T), NA
+    x,
+    x > quantile(x, 1 - cut, na.rm = T),
+    quantile(x, 1 - cut, na.rm = T)
   )
   x <- replace(
-    x, x < quantile(x, cut, na.rm = T), NA
+    x,
+    x < quantile(x, cut, na.rm = T),
+    quantile(x, cut, na.rm = T)
   )
   return(x)
 }
 
 regression_sample_prepared <- regression_sample |> 
-  # winsorize continous outcome variables 
+  # winsorize continuous outcome variables 
   mutate(across(
-    c(inflows, delta, spotvola, spread,
-      balance, balance_past,
-      boundary),
-    ~ trim(., 0.01)
+    c(delta, boundary, spread, spotvola, median_latency, sd_latency, inflows, balance),
+    ~ winsorize(., 0.01)
   )) |>
-  drop_na(delta, spotvola, spread,boundary, median_latency, sd_latency, inflows) |> 
+  drop_na(delta, spotvola, spread, boundary, median_latency, sd_latency, inflows) |> 
   # gdax removed margin end of february 2018
   mutate(margin_trading = if_else(sell_side == "gdax" & ts >= "2018-02-28", FALSE, margin_trading)) |> 
   # replace missing number of confirmations
   mutate(
     no_of_confirmations = replace_na(no_of_confirmations, 3),
-    balance_past = replace_na(balance_past, 0),
+    balance = replace_na(balance, 0),
     inflows = inflows * btc_price / 100000,
     boundary_margin = margin_trading * boundary,
     boundary_business = business_accounts * boundary,

@@ -213,7 +213,7 @@ j <- as.integer(Sys.getenv("SGE_TASK_ID"))
 print(transactions[j])
 estimate_parameters(j)
 
-# Output available on repo ----
+# DO NOT RUN Output available on repo ----
 latencies <- list.files("data/latency", full.names = TRUE) %>%
   map(read_rds) %>%
   reduce(bind_rows)

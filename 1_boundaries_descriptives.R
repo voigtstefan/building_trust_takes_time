@@ -50,7 +50,6 @@ boundary_sample <- boundary_sample %>%
   na.omit()
 nrow(boundary_sample)
 
-################################################################################
 # compute different arbitrage boundaries ----------------------------------
 ## note: fees enter as fee per byte in satoshi here (different from compute_abitrage.R!)
 compute_boundary <- function(fee, alpha, beta_fee, beta_mempool, beta_constant, 
@@ -80,6 +79,7 @@ arbitrage_boundaries <- boundary_sample %>%
 
 write_rds(arbitrage_boundaries, "data/arbitrage_boundaries.rds")
 
+# Replication starts here ----
 arbitrage_boundaries <- read_rds("data/arbitrage_boundaries.rds")
 # summary statistics ------------------------------------------------------
 ## compute summary table
