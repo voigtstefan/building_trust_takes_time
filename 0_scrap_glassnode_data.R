@@ -82,7 +82,7 @@ flows_and_balances <- net_flows %>%
   mutate(balance = starting_balance + cumsum(net_flow)) %>% 
   select(-starting_balance)
 
-write_rds(flows_and_balances, "data/glassnode/clean_flows_and_balances_hourly.rds")
+write_rds(flows_and_balances, "data/clean_flows_and_balances_hourly.rds")
 
 # Some summary statistics ----
 btc_balances <- exchange_balance_daily %>% 
