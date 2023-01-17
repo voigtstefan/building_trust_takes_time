@@ -1,7 +1,5 @@
 library(tidyverse)
 library(lubridate)
-library(scales)
-library(xtable)
 
 source("_config.R")
 
@@ -9,7 +7,7 @@ source("_config.R")
 
 arbitrage <- read_rds("data/arbitrage_data.rds")
 
-# heat map of price differences -------------------------------------------
+# heat map of price differences ----
 ## add 0 rows (reverse direction) to make it easier to compute mean
 arbitrage_reverse <- arbitrage %>% 
   rename(buy_side = sell_side,
