@@ -4,4 +4,4 @@
 .Ruserdata
 .Renviron
 data/glassnode
-.rds*
+*.rds
