@@ -4,7 +4,7 @@ library(xtable)
 
 source("_config.R")
 
-# summarize latency parametrization results -------------------------------
+# summarize latency parametrization results -----
 ## load daily latency parameter estimates
 latencies <- read_rds("data/latency_duration_model_parameters.rds")
 
