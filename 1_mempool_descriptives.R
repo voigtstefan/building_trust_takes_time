@@ -48,7 +48,7 @@ print(xtable(tx_summary),
       floating = FALSE,
       file = 'output/tab_mempool_summary.tex')
 
-# summary statistics for regression ---------------------------------------
+# DO NOT RUN summary statistics for regression ----
 latencies_hourly <- transactions %>% 
   mutate(ts = floor_date(ts, "hour"))  %>%
   group_by(ts) %>%
@@ -58,13 +58,3 @@ latencies_hourly <- transactions %>%
   ungroup()
 
 write_rds(latencies_hourly, "data/latencies_hourly.rds")
-
-# time between consecutive blocks -----------------------------------------
-#blocks <- read_rds("data/bitcoin_blocks.rds")
-#
-#write_csv(blocks %>%
-#            arrange(ts) %>%
-#            mutate(time_diff = ts - lag(ts)) %>%
-#            summarize(mean_time_diff = round(mean(as.numeric(time_diff), na.rm = TRUE) / 60, 2),
-#                      sd_time_diff = round(sd(as.numeric(time_diff), na.rm = TRUE) / 60, 2)),
-#          "output/block_summary.csv")
