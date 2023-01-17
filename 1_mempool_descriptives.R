@@ -4,7 +4,10 @@ library(xtable)
 
 source("_config.R") 
 
-# Bitcoin mempool summary statistics ----------------------------------
+# DO NOT RUN Bitcoin mempool summary statistics ----
+# transaction data is aboug 63 GB, thus not available on Github. The files in data/transactions can be provided upon request. 
+# Final output is available in latencies_hourly.rds
+
 ## load daily transaction files
 transactions_files <- list.files("data/transactions/", full.names = TRUE)
 
