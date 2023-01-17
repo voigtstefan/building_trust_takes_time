@@ -6,17 +6,6 @@ Sys.setenv(LANG = "en")
 cutoff <- '2018-01-01-00-00-00'    
 cutoff_end <- '2019-10-31-23-59-59'   
 
-# custom ggplot theme -----------------------------------------------------
-theme_custom <- function() {
-  theme_bw() + theme(legend.title = element_blank(),
-                     legend.key = element_blank(),
-                     legend.background = element_blank(),
-                     legend.position = "bottom",
-                     plot.title = element_text(hjust = 0.5),
-                     panel.grid.major = element_blank(),
-                     panel.grid.minor = element_blank())
-}
-
 fig_width <- 140*4/3
 fig_height <- 80*4/3
 
