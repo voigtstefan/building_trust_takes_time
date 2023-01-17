@@ -3,31 +3,29 @@ library(fixest)
 
 source("_config.R")
 regression_sample <- read_csv("data/regression_sample.csv")
-legacy_sample <- haven::read_dta("data/flow_and_balance_regression_sample.dta")
+
 # Prepare regression sample ----
-winsorize <- function(x, cut) {
+trim <- function(x, cut) {
   x <- replace(
-    x,
-    x > quantile(x, 1 - cut, na.rm = T),
-    quantile(x, 1 - cut, na.rm = T)
+    x, x > quantile(x, 1 - cut, na.rm = T), NA
   )
   x <- replace(
-    x,
-    x < quantile(x, cut, na.rm = T),
-    quantile(x, cut, na.rm = T)
+    x, x < quantile(x, cut, na.rm = T), NA
   )
   return(x)
 }
 
 regression_sample_prepared <- regression_sample |> 
-  # winsorize continuous outcome variables 
+  # trim continuous outcome variables 
   mutate(across(
-    c(delta, boundary, spread, spotvola, median_latency, sd_latency, inflows, balance),
-    ~ winsorize(., 0.01)
+    c(inflows, delta, spotvola, spread,
+      balance,
+      boundary),
+    ~ trim(., 0.01)
   )) |>
   drop_na(delta, spotvola, spread, boundary, median_latency, sd_latency, inflows) |> 
   # gdax removed margin end of february 2018
-  mutate(margin_trading = if_else(sell_side == "gdax" & ts >= "2018-02-28", FALSE, margin_trading)) |> 
+  mutate(margin_trading = if_else(sell_side == "gdax" & ts >= "2018-02-28", FALSE, as.logical(margin_trading))) |> 
   # replace missing number of confirmations
   mutate(
     no_of_confirmations = replace_na(no_of_confirmations, 3),
@@ -37,7 +35,6 @@ regression_sample_prepared <- regression_sample |>
     boundary_business = business_accounts * boundary,
     log_inflows = log(1 + inflows),
     log_balance = log(1 + balance),
-    log_balance_past = log(1 + balance_past),
     latency_variance = sd_latency ^ 2,
     latency_variance_std = scale(latency_variance)
   )
@@ -46,9 +43,10 @@ regression_sample_prepared <- regression_sample |>
 regression_sample_prepared |> 
   select(
     delta, inflows, spotvola, median_latency, sd_latency, boundary, 
-    balance, balance_past, spread, margin_trading, 
+    balance, balance, spread, margin_trading, 
     business_accounts
-  ) |> pivot_longer(cols = everything()) |> 
+  ) |> 
+  pivot_longer(cols = everything()) |> 
   drop_na() |>
   group_by(name) |>
   summarize(
@@ -81,7 +79,7 @@ dictionary <- c(
   tether = "Tether",
   margin_trading = "Margin Trading",
   business_accounts = "Business Accounts",
-  log_balance_past = "Inventory",
+  log_balance = "Inventory",
   sell_side = "Exchange Fixed Effects",
   log_inflows = "Log(Exchange Inflows)"
 )
@@ -113,26 +111,19 @@ pd_model4 <- feols(
 )
 
 pd_model5 <- feols(
-  delta ~ boundary + spread + log_balance_past | sell_side,
+  delta ~ boundary + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared
 )
 
 pd_model6 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past | sell_side,
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared
 )
-
-pd_model7 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past + region | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared
-)
-
 
 etable(
-  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6, pd_model7,
+  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6,
   coefstat = "tstat",
   dict = dictionary
 )
@@ -169,55 +160,33 @@ etable(
 )
 
 # Regions splits ----------------------------------------------------------
-regions <- tribble(
-  ~exchange, ~US, ~Europe,
-  "binance", TRUE, TRUE,
-  "bitfinex", TRUE, TRUE,
-  "bitflyer", TRUE, TRUE,
-  "bitstamp", TRUE, TRUE,
-  "bittrex", TRUE, TRUE,
-  "cex", TRUE, TRUE,
-  "gate", FALSE, TRUE,
-  "gatecoin", FALSE, FALSE,
-  "gdax", TRUE, TRUE,
-  "gemini", TRUE, FALSE,
-  "hitbtc", FALSE, TRUE,
-  "kraken", TRUE, TRUE,
-  "liqui", FALSE, TRUE,
-  "lykke", FALSE, TRUE,
-  "poloniex", TRUE, FALSE,
-  "xbtce", FALSE, TRUE
-)
-
-regression_sample_prepared <- regression_sample_prepared |> 
-  inner_join(regions, by = c("sell_side"="exchange"))
 
 regions_model1 <- feols(
-  delta ~ boundary + spread + log_balance_past | sell_side,
+  delta ~ boundary + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared |> 
-    filter(US == TRUE)
+    filter(region == "USA"|sell_side =="binance")
 )
 
 regions_model2 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past | sell_side,
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared |> 
-    filter(US == TRUE)
+    filter(region == "USA"|sell_side =="binance")
 )
 
 regions_model3 <- feols(
-  delta ~ boundary + spread + log_balance_past | sell_side,
+  delta ~ boundary + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared |> 
-    filter(Europe == TRUE)
+    filter(region == "Europe"|sell_side =="binance")
 )
 
 regions_model4 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance_past | sell_side,
+  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared |> 
-    filter(Europe == TRUE)
+    filter(region == "Europe"|sell_side =="binance")
 )
 
 etable(

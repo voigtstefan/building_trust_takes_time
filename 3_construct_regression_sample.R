@@ -17,6 +17,8 @@ arbitrage_hourly <- arbitrage %>%
   # note: compute average hourly arbitrage opportunities
   mutate(delta = delta / 60)
 
+rm(arbitrage)
+
 ## hourly arbitrage boundaries
 arbitrage_boundaries <- read_rds("data/arbitrage_boundaries.rds")
 
@@ -27,6 +29,8 @@ arbitrage_boundaries_hourly <- arbitrage_boundaries %>%
   ungroup() %>%
   # note: compute average hourly arbitrage opportunities
   mutate(boundary = boundary / 60)
+
+rm(arbitrage_boundaries)
 
 ## compute hourly spreads and hourly prices
 best_bids_n_asks <- read_rds("data/best_bids_n_asks.rds")
@@ -82,11 +86,11 @@ inflows_hourly <- flows %>%
   ungroup()
 
 # Load (lagged) hourly exchange inventories 
-flows_and_balances <- read_rds("data/glassnode/clean_flows_and_balances_hourly.rds") |>
+flows_and_balances <- read_rds("data/clean_flows_and_balances_hourly.rds") |>
   select(ts = timestamp, sell_side = exchange, balance) |>
-  mutate(ts = ts - lubridate::hours(1))
+  mutate(ts = ts - lubridate::days(1))
 
-# construct regression sample ---------------------------------------------
+# construct regression sample ----
 ## construct full grid to ensure that exchanges have 0s if there is no arbitrage
 full_grid <- crossing(distinct(arbitrage_hourly, sell_side), 
                       distinct(spotvolas_hourly, ts))
