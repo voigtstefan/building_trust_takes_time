@@ -4,7 +4,7 @@ library(xtable)
 
 source("_config.R")
 
-# orderbook summary statistics --------------------------------------------
+# orderbook summary statistics ----
 prices <- read_rds("data/best_bids_n_asks.rds")
 
 ## summary statistics by exchange
