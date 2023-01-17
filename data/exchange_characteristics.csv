@@ -1,0 +1,19 @@
+exchange,only_crypto,btc_withdrawal_fee,maker_fee,taker_fee,margin_trading,us_citizens,no_of_confirmations,location,tether,business_accounts,rating_quantitative,rating_categorial,region
+binance,TRUE,0.001,0.1,0.1,TRUE,TRUE,2,"Tokyo, Japan",TRUE,FALSE,65,A,Other
+bitfinex,FALSE,0.08000000000000004,0.1,0.2,TRUE,FALSE,3,"Central, Hong Kong",FALSE,TRUE,66,A,Other
+bitflyer,FALSE,0.08000000000000004,0.15,0.15,TRUE,TRUE,NA,"Tokyo, Japan",FALSE,TRUE,67,A,Japan
+bitmex,FALSE,0,NA,0.075,FALSE,FALSE,1,Seychelles,FALSE,FALSE,NA,NA,NA
+bitstamp,FALSE,0,0.25,0.25,FALSE,TRUE,3,"London, UK",FALSE,TRUE,71,A,UK
+bittrex,TRUE,0,0.25,0.25,FALSE,TRUE,2,"Las Vegas NV, USA",TRUE,TRUE,57,B,Other
+btcc,FALSE,0.0015,0.1,0.1,FALSE,NA,2,"Shanghai, China",FALSE,FALSE,NA,NA,NA
+cex,FALSE,0.001,0.16,0.25,TRUE,TRUE,3,"London, UK",FALSE,TRUE,60,B,UK
+gatecoin,FALSE,0.060000000000000026,0.25,0.35,FALSE,NA,6,"Wanchai, Hong Kong",FALSE,TRUE,NA,NA,Other
+gate,TRUE,0.002,0.2,0.2,FALSE,NA,2,"Sparta NJ, USA",TRUE,FALSE,NA,NA,USA
+gemini,FALSE,0.002,0.25,1,FALSE,TRUE,3,"New York NY, USA",FALSE,TRUE,78,AA,USA
+gdax,FALSE,0,0,0.3,TRUE,TRUE,3,"San Francisco CA, USA",FALSE,TRUE,75,AA,USA
+hitbtc,TRUE,8.500000000000004e-4,-0.01,0.1,FALSE,TRUE,2,Hong Kong,TRUE,FALSE,55,B,UK
+kraken,FALSE,0.001,0.16,0.26,TRUE,TRUE,6,"San Francisco CA, USA",FALSE,TRUE,73,A,USA
+liqui,TRUE,NA,0.1,0.25,TRUE,FALSE,NA,"Kiev, Ukraine",TRUE,FALSE,NA,NA,Japan
+lykke,FALSE,0.050000000000000024,0.09,0,FALSE,FALSE,3,"Zug, Switzerland",FALSE,FALSE,34,D,Europe
+poloniex,TRUE,NA,0.15,0.2,TRUE,TRUE,1,"Wilmington DE, USA",TRUE,FALSE,67,A,USA
+xbtce,FALSE,0.003,0.15,0.25,TRUE,FALSE,3,"Charlestown, Nevis",FALSE,FALSE,NA,NA,Europe
