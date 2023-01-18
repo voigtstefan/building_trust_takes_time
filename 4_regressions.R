@@ -2,7 +2,7 @@ library(tidyverse)
 library(fixest)
 
 source("_config.R")
-regression_sample <- read_csv("data/regression_sample.csv")
+regression_sample <- read_csv("data/TODISCUSS_regression_sample.csv")
 
 # Prepare regression sample ----
 trim <- function(x, cut) {
@@ -18,7 +18,7 @@ trim <- function(x, cut) {
 regression_sample_prepared <- regression_sample |> 
   # trim continuous outcome variables 
   mutate(across(
-    c(inflows, delta, spotvola, spread,
+    c(inflows, delta, delta_regional, spotvola, spread,
       balance,
       boundary),
     ~ trim(., 0.01)
@@ -42,7 +42,7 @@ regression_sample_prepared <- regression_sample |>
 # Summary statistics ------------------------------------------------------
 regression_sample_prepared |> 
   select(
-    delta, inflows, spotvola, median_latency, sd_latency, boundary, 
+    delta, delta_regional, inflows, spotvola, median_latency, sd_latency, boundary, 
     balance, balance, spread, margin_trading, 
     business_accounts
   ) |> 
@@ -122,8 +122,21 @@ pd_model6 <- feols(
   data = regression_sample_prepared
 )
 
+pd_model7 <- feols(
+  delta_regional ~  boundary + log_balance | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model8 <- feols(
+  delta_regional ~  spotvola + median_latency + latency_variance_std + log_balance | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+
 etable(
-  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6,
+  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6, pd_model7, pd_model8,
   coefstat = "tstat",
   dict = dictionary
 )

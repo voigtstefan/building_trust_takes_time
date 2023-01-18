@@ -1,23 +1,33 @@
 library(tidyverse)
 library(lubridate)
 
+# Are price differences smaller across exchanges within the same region?
+
 source("_config.R")
 
 # read in arbitrage data from repository ----
 
+exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
+  select(exchange, 
+         region, 
+         rating_categorial) |>
+  mutate(region = case_when(region == "UK" ~ "Europe", 
+                            region == "Japan" ~ "Other",
+                            is.na(region) ~ "Other",
+                            TRUE ~ region)) |>
+  replace_exchange_labels()
+  
 arbitrage <- read_rds("data/arbitrage_data.rds")
+arbitrage <- arbitrage |> select(buy_side, sell_side, ts, delta_q)
 
-# heat map of price differences ----
-## add 0 rows (reverse direction) to make it easier to compute mean
 arbitrage_reverse <- arbitrage %>% 
   rename(buy_side = sell_side,
          sell_side = buy_side) %>% 
-  mutate(delta_q = 0,
-         delta_q_excess = 0)
+  mutate(delta_q = 0)
 
 arbitrage_hm <- bind_rows(arbitrage, arbitrage_reverse) %>% 
   group_by(buy_side, sell_side) %>% 
-  summarize(delta_q = 10000*mean(delta_q, na.rm = TRUE)) %>% 
+  summarize(delta_q = 10000 * mean(delta_q, na.rm = TRUE)) %>% 
   ungroup() %>%
   rename(exchange = buy_side) %>%
   replace_exchange_labels() %>%
@@ -39,8 +49,12 @@ p1 <- ggplot(arbitrage_hm, aes(sell_side, buy_side)) +
   labs(x = 'Sell-Side', 
        fill = expression("Mean Price Differences (in bp)"))
 
-ggsave('output/fig_deltas_heatmap.pdf',
-       plot = p1,
-       width = fig_width,
-       height = fig_height,
-       units = 'mm')
+# Heatmap per region
+
+arbitrage_hm_region <- arbitrage_hm |>
+  left_join(exchange_characteristics |> rename(sell_region = region,
+                                               sell_rating = rating_categorial), by = c("sell_side" = "exchange")) |>
+  left_join(exchange_characteristics |> rename(buy_region = region,
+                                               buy_rating = rating_categorial), by = c("buy_side" = "exchange")) |>
+  group_by(sell_region, buy_region) |> 
+  summarize(delta_q = mean(delta_q), .groups = "drop")

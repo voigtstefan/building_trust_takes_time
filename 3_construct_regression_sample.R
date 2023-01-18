@@ -4,18 +4,48 @@ library(lubridate)
 source("_config.R")
 
 # load data ---------------------------------------------------------------
-## hourly price differences
 
-arbitrage <- read_rds("data/arbitrage_data.rds")
+## load exchange characteristics
+exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
+  select(exchange, 
+         no_of_confirmations, 
+         tether, 
+         margin_trading, 
+         business_accounts, 
+         region, 
+         rating_categorial) |>
+  mutate(region = case_when(region == "UK" ~ "Europe", 
+                            region == "Japan" ~ "Other", 
+                            is.na(region) ~ "Other",
+                            TRUE ~ region))
+
+#hourly price differences 
+arbitrage <- read_rds("data/arbitrage_data.rds") |>
+  mutate(ts = floor_date(ts, "hour"))
 
 arbitrage_hourly <- arbitrage %>%
-  mutate(ts = floor_date(ts, "hour")) %>%
   group_by(sell_side, ts) %>%
   # note: scale returns to percent
   summarize(delta = sum(delta) * 100) %>%
   ungroup() %>%
   # note: compute average hourly arbitrage opportunities
   mutate(delta = delta / 60)
+
+arbitrage_region_hourly <- arbitrage |>
+  select(buy_side:delta) |>
+  left_join(exchange_characteristics |> rename(sell_region = region), by = c("sell_side" = "exchange")) |>
+  left_join(exchange_characteristics |> rename(buy_region = region), by = c("buy_side" = "exchange")) |>
+  filter(sell_region == buy_region) |>
+  group_by(sell_side, ts) %>%
+  # note: scale returns to percent
+  summarize(delta = sum(delta) * 100) %>%
+  ungroup() %>%
+  # note: compute average hourly arbitrage opportunities
+  mutate(delta = delta / 60)
+
+arbitrage_hourly <- arbitrage_hourly |> 
+  left_join(arbitrage_region_hourly |> 
+              rename(delta_regional = delta), by = c("sell_side", "ts"))
 
 rm(arbitrage)
 
@@ -56,19 +86,6 @@ spotvolas_hourly <- spotvolas %>%
   summarize(spotvola = mean(spotvola, na.rm = TRUE) * 100) %>%
   ungroup()
 
-## load exchange characteristics
-exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
-  select(exchange, 
-         no_of_confirmations, 
-         tether, 
-         margin_trading, 
-         business_accounts, 
-         region, 
-         rating_categorial) |>
-  mutate(region = case_when(region == "UK" ~ "Europe", 
-                            is.na(region) ~ "Other",
-                            TRUE ~ region))
-
 ## load hourly observed latencies
 latencies_hourly <- read_rds("data/latencies_hourly.rds")
 
@@ -97,7 +114,8 @@ full_grid <- crossing(distinct(arbitrage_hourly, sell_side),
 
 regression_sample <- full_grid %>%
   left_join(arbitrage_hourly, by = c("sell_side", "ts")) |>
-  mutate(delta = replace_na(delta, 0))
+  mutate(delta = replace_na(delta, 0),
+         delta_regional = replace_na(delta_regional, 0))
 
 ## put everything together
 regression_sample <- regression_sample %>%
