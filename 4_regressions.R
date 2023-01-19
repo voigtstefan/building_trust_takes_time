@@ -2,9 +2,9 @@ library(tidyverse)
 library(fixest)
 
 source("_config.R")
-regression_sample <- read_csv("data/TODISCUSS_regression_sample.csv")
+regression_sample <- read_csv("data/regression_sample.csv")
 
-# Prepare regression sample ----
+# Prepare regression sample -----------------------------------------------
 trim <- function(x, cut) {
   x <- replace(
     x, x > quantile(x, 1 - cut, na.rm = T), NA
@@ -28,6 +28,7 @@ regression_sample_prepared <- regression_sample |>
   mutate(margin_trading = if_else(sell_side == "gdax" & ts >= "2018-02-28", FALSE, as.logical(margin_trading))) |> 
   # replace missing number of confirmations
   mutate(
+    aa_rating = rating_categorial == "AA",
     no_of_confirmations = replace_na(no_of_confirmations, 3),
     balance = replace_na(balance, 0),
     inflows = inflows * btc_price / 100000,
@@ -81,7 +82,8 @@ dictionary <- c(
   business_accounts = "Business Accounts",
   log_balance = "Inventory",
   sell_side = "Exchange Fixed Effects",
-  log_inflows = "Log(Exchange Inflows)"
+  log_inflows = "Log(Exchange Inflows)",
+  aa_rating = "AA Rating"
 )
 
 # Price Differences and Sources of Price Risk -----------------------------
@@ -119,11 +121,11 @@ pd_model5 <- feols(
 pd_model6 <- feols(
   delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
   vcov = vcov,
-  data = regression_sample_prepared
+  data = regression_sample_prepared 
 )
 
 pd_model7 <- feols(
-  delta_regional ~  boundary + log_balance | sell_side,
+  delta_regional ~  boundary + spread + log_balance | sell_side,
   vcov = vcov,
   data = regression_sample_prepared
 )
@@ -131,9 +133,8 @@ pd_model7 <- feols(
 pd_model8 <- feols(
   delta_regional ~  spotvola + median_latency + latency_variance_std + log_balance | sell_side,
   vcov = vcov,
-  data = regression_sample_prepared
+  data = regression_sample_prepared 
 )
-
 
 etable(
   pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6, pd_model7, pd_model8,
@@ -174,36 +175,36 @@ etable(
 
 # Regions splits ----------------------------------------------------------
 
-regions_model1 <- feols(
-  delta ~ boundary + spread + log_balance | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared |> 
-    filter(region == "USA"|sell_side =="binance")
-)
-
-regions_model2 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared |> 
-    filter(region == "USA"|sell_side =="binance")
-)
-
-regions_model3 <- feols(
-  delta ~ boundary + spread + log_balance | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared |> 
-    filter(region == "Europe"|sell_side =="binance")
-)
-
-regions_model4 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared |> 
-    filter(region == "Europe"|sell_side =="binance")
-)
-
-etable(
-  regions_model1, regions_model2, regions_model3, regions_model4,
-  coefstat = "tstat",
-  dict = dictionary
-)
+# regions_model1 <- feols(
+#   delta ~ boundary + spread + log_balance | sell_side,
+#   vcov = vcov,
+#   data = regression_sample_prepared |> 
+#     filter(region == "USA"|sell_side =="binance")
+# )
+# 
+# regions_model2 <- feols(
+#   delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
+#   vcov = vcov,
+#   data = regression_sample_prepared |> 
+#     filter(region == "USA"|sell_side =="binance")
+# )
+# 
+# regions_model3 <- feols(
+#   delta ~ boundary + spread + log_balance | sell_side,
+#   vcov = vcov,
+#   data = regression_sample_prepared |> 
+#     filter(region == "Europe"|sell_side =="binance")
+# )
+# 
+# regions_model4 <- feols(
+#   delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
+#   vcov = vcov,
+#   data = regression_sample_prepared |> 
+#     filter(region == "Europe"|sell_side =="binance")
+# )
+# 
+# etable(
+#   regions_model1, regions_model2, regions_model3, regions_model4,
+#   coefstat = "tstat",
+#   dict = dictionary
+# )
