@@ -64,6 +64,7 @@ regression_sample_prepared |>
 # label variables
 dictionary <- c(
   delta = "Price Differences (in %)",
+  delta_regional = "Regional Price Differences (in %)",
   inflows = "Exchange Inflows (in 100k USD)",
   spotvola = "Spot Volatility (in %)",
   median_latency = "Latency Median (in Min)",
@@ -113,34 +114,81 @@ pd_model4 <- feols(
 )
 
 pd_model5 <- feols(
-  delta ~ boundary + spread + log_balance | sell_side,
+  delta ~ boundary + log_balance + spread | sell_side,
   vcov = vcov,
   data = regression_sample_prepared
 )
 
 pd_model6 <- feols(
-  delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared 
-)
-
-pd_model7 <- feols(
-  delta_regional ~  boundary + spread + log_balance | sell_side,
-  vcov = vcov,
-  data = regression_sample_prepared
-)
-
-pd_model8 <- feols(
-  delta_regional ~  spotvola + median_latency + latency_variance_std + log_balance | sell_side,
+  delta ~  spotvola + median_latency + latency_variance_std + log_balance + spread | sell_side,
   vcov = vcov,
   data = regression_sample_prepared 
 )
 
 etable(
-  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6, pd_model7, pd_model8,
+  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6,
   coefstat = "tstat",
   dict = dictionary
 )
+
+
+etable(
+  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6,
+  coefstat = "tstat",
+  dict = dictionary, 
+  tex = TRUE, 
+  style.tex = style.tex(line.top = "\\toprule", line.bottom = "\\bottomrule"), 
+  fitstat=c('n'),
+  fontsize = "footnotesize",
+  tabular = "X",
+  notes = "\\emph{Notes: }")
+
+
+  # Robustness check: regional splits ---------------------------------------
+pd_model7 <- feols(
+  delta_regional ~ boundary + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(region == "USA")
+)
+
+pd_model8 <- feols(
+  delta_regional ~  boundary + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(region == "Europe")
+)
+
+pd_model9 <- feols(
+  delta_regional ~  boundary + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model10 <- feols(
+  delta ~  boundary*aa_rating + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+etable(
+  pd_model7, pd_model8, pd_model9, pd_model10, 
+  coefstat = "tstat",
+  dict = dictionary
+)
+
+etable(
+  pd_model7, pd_model8, pd_model9, pd_model10, 
+  coefstat = "tstat",
+  dict = dictionary, 
+  tex = TRUE, 
+  style.tex = style.tex(line.top = "\\toprule", line.bottom = "\\bottomrule"), 
+  headers = list("^:_:\\emph{Dependent Variable}" = c("Regional Price Differences (in %)", "Regional Price Differences (in %)", "Regional Price Differences (in %)", "Price Differences (in %)"),
+                 "Region" = c("USA", "Europe", "All", "")), 
+  fitstat=c('n'),
+  depvar = FALSE,
+  group=list("Controls: Inventory and Spread" = c("Spread", "Inventory")))
+
 
 # Cross-Exchange Flows and Arbitrage Opportunities ------------------------
 flows_model1 <- feols(
@@ -150,7 +198,7 @@ flows_model1 <- feols(
 )
 
 flows_model2 <- feols(
-  inflows ~ spread | sell_side| delta ~ boundary,
+  inflows ~  spread | sell_side| delta ~ boundary,
   vcov = vcov,
   data = regression_sample_prepared
 )
@@ -162,7 +210,7 @@ flows_model3 <- feols(
 )
 
 flows_model4 <- feols(
-  log_inflows ~ spread | sell_side| delta ~ boundary,
+  log_inflows ~  spread | sell_side| delta ~ boundary,
   vcov = vcov,
   data = regression_sample_prepared
 )
@@ -173,38 +221,16 @@ etable(
   dict = dictionary
 )
 
-# Regions splits ----------------------------------------------------------
+# Tex output (requires some manual styling)
+etable(
+  flows_model1, flows_model2, flows_model3, flows_model4, 
+  coefstat = "tstat",
+  dict = dictionary, 
+  tex = TRUE, 
+  style.tex = style.tex(line.top = "\\toprule", line.bottom = "\\bottomrule"), 
+  headers = list("^:_:\\emph{Dependent Variable}" = c("Exchange Inflows (in 100k USD)", "Exchange Inflows (in 100k USD)", "Log(Exchange Inflows)", "Log(Exchange Inflows)")), 
+  fitstat=c('n'),
+  depvar = FALSE)
 
-# regions_model1 <- feols(
-#   delta ~ boundary + spread + log_balance | sell_side,
-#   vcov = vcov,
-#   data = regression_sample_prepared |> 
-#     filter(region == "USA"|sell_side =="binance")
-# )
-# 
-# regions_model2 <- feols(
-#   delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
-#   vcov = vcov,
-#   data = regression_sample_prepared |> 
-#     filter(region == "USA"|sell_side =="binance")
-# )
-# 
-# regions_model3 <- feols(
-#   delta ~ boundary + spread + log_balance | sell_side,
-#   vcov = vcov,
-#   data = regression_sample_prepared |> 
-#     filter(region == "Europe"|sell_side =="binance")
-# )
-# 
-# regions_model4 <- feols(
-#   delta ~  spotvola + median_latency + latency_variance_std + spread + log_balance | sell_side,
-#   vcov = vcov,
-#   data = regression_sample_prepared |> 
-#     filter(region == "Europe"|sell_side =="binance")
-# )
-# 
-# etable(
-#   regions_model1, regions_model2, regions_model3, regions_model4,
-#   coefstat = "tstat",
-#   dict = dictionary
-# )
+
+

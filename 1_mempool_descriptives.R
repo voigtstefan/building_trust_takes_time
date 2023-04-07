@@ -27,7 +27,7 @@ tx_summary <- transactions %>%
          `Fee per Byte (in Satoshi)` = tx_fee_per_byte,
          `Fee per Transaction (in USD)` = tx_fee_usd,
          `Transaction Size (in Bytes)` = tx_size,
-         `Mempool Size (in K)` = unconfirmed_tx) %>% 
+         `Mempool Size (in 1000)` = unconfirmed_tx) %>% 
   gather(variable, value) %>% 
   group_by(variable) %>% 
   summarise(Mean = mean(value),
