@@ -43,9 +43,23 @@ arbitrage_region_hourly <- arbitrage |>
   # note: compute average hourly arbitrage opportunities
   mutate(delta = delta / 60)
 
+arbitrage_theter_hourly <- arbitrage |>
+  select(buy_side:delta) |>
+  left_join(exchange_characteristics |> rename(sell_tether = tether), by = c("sell_side" = "exchange")) |>
+  left_join(exchange_characteristics |> rename(buy_tether = tether), by = c("buy_side" = "exchange")) |>
+  filter(sell_tether == buy_tether) |>
+  group_by(sell_side, ts) %>%
+  # note: scale returns to percent
+  summarize(delta = sum(delta) * 100) %>%
+  ungroup() %>%
+  # note: compute average hourly arbitrage opportunities
+  mutate(delta = delta / 60)
+
 arbitrage_hourly <- arbitrage_hourly |> 
   left_join(arbitrage_region_hourly |> 
-              rename(delta_regional = delta), by = c("sell_side", "ts"))
+              rename(delta_regional = delta), by = c("sell_side", "ts")) |>
+  left_join(arbitrage_theter_hourly |> 
+              rename(delta_tether = delta), by = c("sell_side", "ts"))
 
 rm(arbitrage)
 

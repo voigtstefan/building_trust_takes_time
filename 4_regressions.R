@@ -18,7 +18,7 @@ trim <- function(x, cut) {
 regression_sample_prepared <- regression_sample |> 
   # trim continuous outcome variables 
   mutate(across(
-    c(inflows, delta, delta_regional, spotvola, spread,
+    c(inflows, delta, delta_regional, delta_tether, spotvola, spread,
       balance,
       boundary),
     ~ trim(., 0.01)
@@ -43,7 +43,7 @@ regression_sample_prepared <- regression_sample |>
 # Summary statistics ------------------------------------------------------
 regression_sample_prepared |> 
   select(
-    delta, delta_regional, inflows, spotvola, median_latency, sd_latency, boundary, 
+    delta, delta_regional, delta_tether, inflows, spotvola, median_latency, sd_latency, boundary, 
     balance, balance, spread, margin_trading, 
     business_accounts
   ) |> 
@@ -65,6 +65,7 @@ regression_sample_prepared |>
 dictionary <- c(
   delta = "Price Differences (in %)",
   delta_regional = "Regional Price Differences (in %)",
+  delta_tether = "Price Differences (in %)",
   inflows = "Exchange Inflows (in 100k USD)",
   spotvola = "Spot Volatility (in %)",
   median_latency = "Latency Median (in Min)",
@@ -131,7 +132,6 @@ etable(
   dict = dictionary
 )
 
-
 etable(
   pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6,
   coefstat = "tstat",
@@ -144,7 +144,7 @@ etable(
   notes = "\\emph{Notes: }")
 
 
-  # Robustness check: regional splits ---------------------------------------
+# Robustness check: USDT and regional splits ---------------------------------------
 pd_model7 <- feols(
   delta_regional ~ boundary + log_balance + spread | sell_side,
   vcov = vcov,
@@ -166,29 +166,50 @@ pd_model9 <- feols(
 )
 
 pd_model10 <- feols(
+  delta_tether ~ boundary + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(tether == TRUE)
+)
+
+pd_model11 <- feols(
+  delta_tether ~ boundary + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared |> 
+    filter(tether == FALSE)
+)
+
+pd_model12 <- feols(
+  delta_tether ~ boundary + log_balance + spread | sell_side,
+  vcov = vcov,
+  data = regression_sample_prepared
+)
+
+pd_model13 <- feols(
   delta ~  boundary*aa_rating + log_balance + spread | sell_side,
   vcov = vcov,
   data = regression_sample_prepared
 )
 
 etable(
-  pd_model7, pd_model8, pd_model9, pd_model10, 
+  pd_model13, pd_model7, pd_model8, pd_model9, pd_model10, pd_model11, pd_model12,  
   coefstat = "tstat",
   dict = dictionary
 )
 
 etable(
-  pd_model7, pd_model8, pd_model9, pd_model10, 
+  pd_model13, pd_model7, pd_model8, pd_model9, pd_model10, pd_model11, pd_model12,  
   coefstat = "tstat",
   dict = dictionary, 
   tex = TRUE, 
   style.tex = style.tex(line.top = "\\toprule", line.bottom = "\\bottomrule"), 
-  headers = list("^:_:\\emph{Dependent Variable}" = c("Regional Price Differences (in %)", "Regional Price Differences (in %)", "Regional Price Differences (in %)", "Price Differences (in %)"),
-                 "Region" = c("USA", "Europe", "All", "")), 
+  headers = list("^:_:\\emph{Dependent Variable}" = c("Price Differences (in %)", 
+                                                      "Regional Price Differences (in %)", "Regional Price Differences (in %)", "Regional Price Differences (in %)",
+                                                      "Price Differences (in %)", "Price Differences (in %)", "Price Differences (in %)"),
+                 "Subset" = c("", "USA", "Europe", "All", "USDT", "USD", "All")), 
   fitstat=c('n'),
   depvar = FALSE,
   group=list("Controls: Inventory and Spread" = c("Spread", "Inventory")))
-
 
 # Cross-Exchange Flows and Arbitrage Opportunities ------------------------
 flows_model1 <- feols(
