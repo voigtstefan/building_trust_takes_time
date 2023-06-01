@@ -1,7 +1,6 @@
 # Exchange-pair FE regression model
 
 library(tidyverse)
-library(lubridate)
 library(primes)
 
 source("_config.R")
@@ -19,28 +18,32 @@ exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
 arbitrage <- read_rds("data/arbitrage_data.rds")
 
 arbitrage <- arbitrage |> 
-  left_join(exchange_characteristics |> select(exchange, identifier), by = c("sell_side" = "exchange")) |>
-  left_join(exchange_characteristics |> select(exchange, identifier), by = c("buy_side" = "exchange"), suffix = c(".sell",".buy")) |>
+  left_join(exchange_characteristics |> select(exchange, identifier), 
+            by = c("sell_side" = "exchange")) |>
+  left_join(exchange_characteristics |> select(exchange, identifier), 
+            by = c("buy_side" = "exchange"), 
+            suffix = c(".sell",".buy")) |>
   mutate(pair = identifier.sell * identifier.buy,
          hour = floor_date(ts, "hour"),
          delta = delta * 100) |> # note: scale returns to percent
-    select(ts, hour, buy_side, sell_side, pair, delta)
+  select(ts, hour, buy_side, sell_side, pair, delta)
   
 # Merge with arbitrage boundaries & sell-side spotvola
 arbitrage_boundaries <- read_rds("data/arbitrage_boundaries.rds")
 arbitrage_boundaries <- arbitrage_boundaries |> 
   transmute(exchange, 
             ts, 
-            spotvola = spotvola, 
-            boundary = boundary_crra2)
+            spotvola = 100 * spotvola, 
+            boundary = 100 * boundary_crra2)
 
 ## Merge with spreads (in basis)
 best_bids_n_asks <- read_rds("data/best_bids_n_asks.rds")
 
 best_bids_n_asks <- best_bids_n_asks |> 
-  mutate(spread = (ask - bid) / ask,
-         btc_price = (ask + bid) / 2) |>
-  select(exchange, ts, spread, btc_price)
+  mutate(midquote = (ask + bid) / 2,
+         spread = 100 * (ask - bid) / midquote,
+         spread = if_else(spread >= 0, spread, NA)) |>
+  select(exchange, ts, spread, btc_price = midquote)
 
 ## Merge with parametrized latencies
 latencies_hourly <- read_rds("data/latencies_hourly.rds")
@@ -51,29 +54,37 @@ latencies_hourly <- latencies_hourly |>
 flows_hourly <- read_rds("data/cross_exchange_flows.rds")
 
 flows_hourly <- flows_hourly |>
-  mutate(hour = floor_date(ts, "hour")) |>
+  mutate(hour = floor_date(ts, "hour"),
+         from = if_else(from == "coinbase", "gdax", from), # Fix few inconsistencies in our exchange naming conventions
+         to = if_else(to == "coinbase", "gdax", to),         
+         from = str_remove(from, pattern = "\\..*"), # Fix cex.io and 
+         to = str_remove(to, pattern = "\\..*")) |>
   group_by(from, to, hour) |>
   summarize(volume = sum(volume * 1e-08)) |>
   ungroup() |>
-  left_join(exchange_characteristics |> select(exchange, identifier), 
+  left_join(exchange_characteristics |> 
+              select(exchange, identifier), 
             by = c("from" = "exchange")) |>
-  left_join(exchange_characteristics |> select(exchange, identifier), 
-            by = c("to" = "exchange"), suffix = c(".sell",".buy")) |>
+  left_join(exchange_characteristics |> 
+              select(exchange, identifier), 
+            by = c("to" = "exchange"), 
+            suffix = c(".sell",".buy")) |>
   mutate(pair = identifier.sell * identifier.buy) 
 
-# NOTE: I aggregate flows to / from on a pair/hour level to obtain net flows
+# Aggregate flows to / from on a pair/hour level to obtain net hourly pair flows
 flows_hourly <- flows_hourly |>
-  drop_na(pair) |>
-  arrange(hour, pair) |>
+  arrange(hour, pair, from, to) |>
   group_by(pair, hour) |>
   summarise(to = first(to),
             from = first(from),
-            flow_volume = if_else(n() == 1, first(volume), first(volume) - last(volume))) |>
+            flow_volume = if_else(n() == 1, 
+                                  first(volume), 
+                                  first(volume) - last(volume))) |>
   ungroup()
   
 # Merge with (lagged) hourly exchange inventories 
 flows_and_balances <- read_rds("data/clean_flows_and_balances_hourly.rds") |>
-  select(hour = timestamp, sell_side = exchange, balance) |>
+  select(hour = timestamp, exchange, balance) |>
   mutate(hour = hour - lubridate::days(1))
 
 # Merge all files
@@ -88,7 +99,9 @@ regression_sample <- arbitrage |>
             by = c("buy_side" = "exchange"), suffix = c(".sell",".buy")) 
 
 regression_sample <- regression_sample |>
-  left_join(flows_and_balances, by = c("sell_side", "hour")) |>
+  left_join(flows_and_balances, by = c("sell_side" = "exchange", "hour")) |>
+  left_join(flows_and_balances, by = c("buy_side" = "exchange", "hour"), 
+            suffix = c(".sell",".buy")) |>
   left_join(flows_hourly, by = c("pair", "hour")) |>
   mutate(flow_volume = if_else(to == sell_side, flow_volume, -flow_volume)) |>
   select(-from, -to)
@@ -118,19 +131,23 @@ regression_sample_prepared <- regression_sample |>
   mutate(
     aa_rating.buy = rating_categorial.buy == "AA",
     aa_rating.sell = rating_categorial.sell == "AA",
-    boundary_margin = margin_trading.sell * boundary,
-    boundary_business = business_accounts.sell * boundary,
+    boundary_margin.sell = margin_trading.sell * boundary,
+    boundary_margin.pair = margin_trading.sell * margin_trading.buy *boundary,
+    boundary_business.sell = business_accounts.sell * boundary,
+    boundary_business.pair = business_accounts.sell * business_accounts.buy * boundary,
     latency_variance = latency_sd ^ 2,
     latency_variance_std = scale(latency_variance),
-    balance = replace_na(balance, 0),
-    flow_volume = flow_volume * btc_price / 100000
+    latency_median_std = scale(latency_median),
+    balance.sell = replace_na(balance.sell, 0),
+    balance.buy = replace_na(balance.buy, 0),
+    flow_volume_usd = flow_volume * btc_price / 100000
   ) |>
   select(-btc_price)
 
 # Summary statistics
 regression_sample_prepared |> 
   select(
-    delta, spotvola, median_latency, sd_latency, boundary, 
+    delta, spotvola, latency_median, latency_sd, boundary, 
     spread, margin_trading.sell, business_accounts.sell
   ) |> 
   pivot_longer(cols = everything()) |> 
@@ -149,6 +166,7 @@ regression_sample_prepared |>
 
 # store regression sample
 
-write_rds(regression_sample_prepared, "data/exchange_pair_regression_sample.rds",
+write_rds(regression_sample_prepared, 
+          "data/exchange_pair_regression_sample.rds",
           compress = "gz")
 
