@@ -27,28 +27,40 @@ arbitrage <- arbitrage |>
          hour = floor_date(ts, "hour"),
          delta = delta * 100) |> # note: scale returns to percent
   select(ts, hour, buy_side, sell_side, pair, delta)
+
+arbitrage <- arbitrage |>
+  group_by(hour, pair, buy_side, sell_side) |>
+  summarise(delta = sum(delta) / 60) |>
+  ungroup()
   
 # Merge with arbitrage boundaries & sell-side spotvola
 arbitrage_boundaries <- read_rds("data/arbitrage_boundaries.rds")
 arbitrage_boundaries <- arbitrage_boundaries |> 
-  transmute(exchange, 
-            ts, 
-            spotvola = 100 * spotvola, 
-            boundary = 100 * boundary_crra2)
+  mutate(hour = floor_date(ts, "hour")) |>
+  group_by(hour, sell_side = exchange) |>
+  summarise(spotvola = 100 * sum(spotvola), 
+            boundary = 100 * sum(boundary_crra2) / 60) |>
+  ungroup()
 
 ## Merge with spreads (in basis)
 best_bids_n_asks <- read_rds("data/best_bids_n_asks.rds")
 
 best_bids_n_asks <- best_bids_n_asks |> 
-  mutate(midquote = (ask + bid) / 2,
+  mutate(hour = floor_date(ts, "hour"),
+         midquote = (ask + bid) / 2,
          spread = 100 * (ask - bid) / midquote,
          spread = if_else(spread >= 0, spread, NA)) |>
-  select(exchange, ts, spread, btc_price = midquote)
-
+  group_by(hour, exchange) |>
+  summarise(spread = mean(spread),
+            btc_price = mean(midquote)) |>
+  ungroup()
+  
 ## Merge with parametrized latencies
 latencies_hourly <- read_rds("data/latencies_hourly.rds")
 latencies_hourly <- latencies_hourly |> 
-  select(hour = ts, latency_median = median_latency, latency_sd = sd_latency)
+  select(hour = ts, 
+         latency_median = median_latency, 
+         latency_sd = sd_latency)
 
 ## Merge with hourly inflows from other exchanges 
 flows_hourly <- read_rds("data/cross_exchange_flows.rds")
@@ -81,7 +93,7 @@ flows_hourly <- flows_hourly |>
                                   first(volume), 
                                   first(volume) - last(volume))) |>
   ungroup()
-  
+
 # Merge with (lagged) hourly exchange inventories 
 flows_and_balances <- read_rds("data/clean_flows_and_balances_hourly.rds") |>
   select(hour = timestamp, exchange, balance) |>
@@ -90,8 +102,8 @@ flows_and_balances <- read_rds("data/clean_flows_and_balances_hourly.rds") |>
 # Merge all files
 
 regression_sample <- arbitrage |> 
-  left_join(arbitrage_boundaries, by = c("sell_side" = "exchange", "ts")) |>
-  left_join(best_bids_n_asks, by = c("sell_side" = "exchange", "ts")) |> 
+  left_join(arbitrage_boundaries, by = c("sell_side", "hour")) |>
+  left_join(best_bids_n_asks, by = c("sell_side" = "exchange", "hour")) |> 
   left_join(latencies_hourly, by = "hour") |>
   left_join(exchange_characteristics |> select(-identifier), 
             by = c("sell_side" = "exchange")) |>
@@ -105,7 +117,7 @@ regression_sample <- regression_sample |>
   left_join(flows_hourly, by = c("pair", "hour")) |>
   mutate(flow_volume = if_else(to == sell_side, flow_volume, -flow_volume)) |>
   select(-from, -to)
-  
+
 # Prepare regression sample ---------
 
 trim <- function(x, cut) {
@@ -126,8 +138,8 @@ regression_sample_prepared <- regression_sample |>
   )) |>
   drop_na(delta, spotvola, spread, boundary, latency_median, latency_sd) |> 
   # gdax removed margin end of february 2018
-  mutate(margin_trading.sell = if_else(sell_side == "gdax" & ts >= "2018-02-28", FALSE, as.logical(margin_trading.sell)),
-         margin_trading.buy = if_else(buy_side == "gdax" & ts >= "2018-02-28", FALSE, as.logical(margin_trading.buy))) |> 
+  mutate(margin_trading.sell = if_else(sell_side == "gdax" & hour >= "2018-02-28", FALSE, as.logical(margin_trading.sell)),
+         margin_trading.buy = if_else(buy_side == "gdax" & hour >= "2018-02-28", FALSE, as.logical(margin_trading.buy))) |> 
   mutate(
     aa_rating.buy = rating_categorial.buy == "AA",
     aa_rating.sell = rating_categorial.sell == "AA",
@@ -167,6 +179,5 @@ regression_sample_prepared |>
 # store regression sample
 
 write_rds(regression_sample_prepared, 
-          "data/exchange_pair_regression_sample.rds",
+          "data/exchange_pair_hourly_regression_sample.rds",
           compress = "gz")
-
