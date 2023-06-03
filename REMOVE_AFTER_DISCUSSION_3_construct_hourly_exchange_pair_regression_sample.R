@@ -25,22 +25,14 @@ arbitrage <- arbitrage |>
             suffix = c(".sell",".buy")) |>
   mutate(pair = identifier.sell * identifier.buy,
          hour = floor_date(ts, "hour"),
-         delta = delta * 100) 
+         delta = delta * 100) |> # note: scale returns to percent
+  select(ts, hour, buy_side, sell_side, pair, delta)
 
-arbitrage <- arbitrage |> 
-  select(hour, pair, identifier.sell, identifier.buy, delta) |>
-  group_by(hour, pair) |>
+arbitrage <- arbitrage |>
+  group_by(hour, pair, buy_side, sell_side) |>
   summarise(delta = sum(delta) / 60) |>
   ungroup()
-
-arbitrage <- arbitrage |>  # Hourly exchange-pair sample
-  group_by(hour, pair) |> 
-  arrange(desc(n)) |> 
-  summarise(delta = sum(delta), 
-            buy_side = first(buy_side), 
-            sell_side = first(sell_side)) |>
-  ungroup()
-
+  
 # Merge with arbitrage boundaries & sell-side spotvola
 arbitrage_boundaries <- read_rds("data/arbitrage_boundaries.rds")
 arbitrage_boundaries <- arbitrage_boundaries |> 
@@ -62,7 +54,7 @@ best_bids_n_asks <- best_bids_n_asks |>
   summarise(spread = mean(spread),
             btc_price = mean(midquote)) |>
   ungroup()
-
+  
 ## Merge with parametrized latencies
 latencies_hourly <- read_rds("data/latencies_hourly.rds")
 latencies_hourly <- latencies_hourly |> 
