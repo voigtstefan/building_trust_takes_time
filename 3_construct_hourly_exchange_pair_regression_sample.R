@@ -6,7 +6,7 @@ library(primes)
 source("_config.R")
 
 ## Merge with exchange characteristics
-exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
+exchange_characteristics <- read_csv("data/exchange_characteristics.csv") |>
   select(exchange, tether, margin_trading, business_accounts, region, rating_categorial) |>
   mutate(region = case_when(region == "UK" ~ "Europe", 
                             region == "Japan" ~ "Other", 
@@ -18,27 +18,23 @@ exchange_characteristics <- read_csv("data/exchange_characteristics.csv") %>%
 arbitrage <- read_rds("data/arbitrage_data.rds")
 
 arbitrage <- arbitrage |> 
+  select(ts, buy_side, sell_side, delta) |>
   left_join(exchange_characteristics |> select(exchange, identifier), 
             by = c("sell_side" = "exchange")) |>
   left_join(exchange_characteristics |> select(exchange, identifier), 
             by = c("buy_side" = "exchange"), 
-            suffix = c(".sell",".buy")) |>
-  mutate(pair = identifier.sell * identifier.buy,
+            suffix = c("_sell","_buy")) |>
+  mutate(pair = identifier_sell * identifier_buy,
          hour = floor_date(ts, "hour"),
          delta = delta * 100) 
 
-arbitrage <- arbitrage |> 
-  select(hour, pair, identifier.sell, identifier.buy, delta) |>
-  group_by(hour, pair) |>
-  summarise(delta = sum(delta) / 60) |>
-  ungroup()
-
 arbitrage <- arbitrage |>  # Hourly exchange-pair sample
-  group_by(hour, pair) |> 
+  group_by(hour, pair) |>
+  mutate(n = n()) |>
   arrange(desc(n)) |> 
-  summarise(delta = sum(delta), 
-            buy_side = first(buy_side), 
-            sell_side = first(sell_side)) |>
+  summarise(buy_side = first(buy_side), 
+            sell_side = first(sell_side),
+            delta = sum(delta)) |>
   ungroup()
 
 # Merge with arbitrage boundaries & sell-side spotvola
@@ -88,8 +84,8 @@ flows_hourly <- flows_hourly |>
   left_join(exchange_characteristics |> 
               select(exchange, identifier), 
             by = c("to" = "exchange"), 
-            suffix = c(".sell",".buy")) |>
-  mutate(pair = identifier.sell * identifier.buy) 
+            suffix = c("_sell","_buy")) |>
+  mutate(pair = identifier_sell * identifier_buy) 
 
 # Aggregate flows to / from on a pair/hour level to obtain net hourly pair flows
 flows_hourly <- flows_hourly |>
@@ -116,12 +112,12 @@ regression_sample <- arbitrage |>
   left_join(exchange_characteristics |> select(-identifier), 
             by = c("sell_side" = "exchange")) |>
   left_join(exchange_characteristics |> select(-identifier), 
-            by = c("buy_side" = "exchange"), suffix = c(".sell",".buy")) 
+            by = c("buy_side" = "exchange"), suffix = c("_sell","_buy")) 
 
 regression_sample <- regression_sample |>
   left_join(flows_and_balances, by = c("sell_side" = "exchange", "hour")) |>
   left_join(flows_and_balances, by = c("buy_side" = "exchange", "hour"), 
-            suffix = c(".sell",".buy")) |>
+            suffix = c("_sell","_buy")) |>
   left_join(flows_hourly, by = c("pair", "hour")) |>
   mutate(flow_volume = if_else(to == sell_side, flow_volume, -flow_volume)) |>
   select(-from, -to)
@@ -146,20 +142,20 @@ regression_sample_prepared <- regression_sample |>
   )) |>
   drop_na(delta, spotvola, spread, boundary, latency_median, latency_sd) |> 
   # gdax removed margin end of february 2018
-  mutate(margin_trading.sell = if_else(sell_side == "gdax" & hour >= "2018-02-28", FALSE, as.logical(margin_trading.sell)),
-         margin_trading.buy = if_else(buy_side == "gdax" & hour >= "2018-02-28", FALSE, as.logical(margin_trading.buy))) |> 
+  mutate(margin_trading_sell = if_else(sell_side == "gdax" & hour >= "2018-02-28", FALSE, as.logical(margin_trading_sell)),
+         margin_trading_buy = if_else(buy_side == "gdax" & hour >= "2018-02-28", FALSE, as.logical(margin_trading_buy))) |> 
   mutate(
-    aa_rating.buy = rating_categorial.buy == "AA",
-    aa_rating.sell = rating_categorial.sell == "AA",
-    boundary_margin.sell = margin_trading.sell * boundary,
-    boundary_margin.pair = margin_trading.sell * margin_trading.buy *boundary,
-    boundary_business.sell = business_accounts.sell * boundary,
-    boundary_business.pair = business_accounts.sell * business_accounts.buy * boundary,
+    aa_rating_buy = rating_categorial_buy == "AA",
+    aa_rating_sell = rating_categorial_sell == "AA",
+    boundary_margin_sell = margin_trading_sell * boundary,
+    boundary_margin.pair = margin_trading_sell * margin_trading_buy *boundary,
+    boundary_business_sell = business_accounts_sell * boundary,
+    boundary_business.pair = business_accounts_sell * business_accounts_buy * boundary,
     latency_variance = latency_sd ^ 2,
     latency_variance_std = scale(latency_variance),
     latency_median_std = scale(latency_median),
-    balance.sell = replace_na(balance.sell, 0),
-    balance.buy = replace_na(balance.buy, 0),
+    balance_sell = replace_na(balance_sell, 0),
+    balance_buy = replace_na(balance_buy, 0),
     flow_volume_usd = flow_volume * btc_price / 100000
   ) |>
   select(-btc_price)
@@ -168,7 +164,7 @@ regression_sample_prepared <- regression_sample |>
 regression_sample_prepared |> 
   select(
     delta, spotvola, latency_median, latency_sd, boundary, 
-    spread, margin_trading.sell, business_accounts.sell
+    spread, margin_trading_sell, business_accounts_sell
   ) |> 
   pivot_longer(cols = everything()) |> 
   drop_na() |>

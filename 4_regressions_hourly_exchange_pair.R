@@ -4,11 +4,12 @@ library(tidyverse)
 library(fixest)
 
 source("_config.R")
-regression_sample <- read_rds("data/tmp_exchange_pair_hourly_regression_sample.rds")
+regression_sample <- read_rds("data/exchange_pair_hourly_regression_sample.rds")
 regression_sample <- regression_sample |>
-  mutate(inventory = log(1 + balance.sell),
+  mutate(inventory = log(1 + balance_sell),
          latency_median_log = log(latency_median),
-         latency_variance_log = log(latency_sd^2))
+         latency_variance_log = log(latency_sd^2),
+         week = floor_date(hour, "week"))
 
 # label variables
 dictionary <- c(
@@ -17,39 +18,39 @@ dictionary <- c(
   latency_median_log = "Latency Median",
   latency_variance_log = "Latency Variance",
   boundary = "Arbitrage Bound (in %)",
-  boundary_margin.sell = "Arbitrage Bound X Margin Trading",
-  boundary_business.sell = "Arbitrage Bound X Business Accounts",
+  boundary_margin_sell = "Arbitrage Bound X Margin Trading",
+  boundary_business_sell = "Arbitrage Bound X Business Accounts",
   spread = "Spread (in %)",
   pair = "Exchange-pair Fixed Effects",
-  aa_rating.sell = "AA Rating",
+  aa_rating_sell = "AA Rating",
   inventory = "Inventory"
 )
 
 # Price Differences and Sources of Price Risk -----------------------------
-vcov <- "hetero"
+vcov <- NW(24) ~ pair + hour
 
 pd_model1 <- feols(
-  delta ~ boundary| pair,
+  delta ~ boundary| pair+ sell_side,
   vcov = vcov,
-  data = regression_sample 
+  data = regression_sample
 )
 
 pd_model2 <- feols(
-  delta ~ spotvola + latency_median_log + latency_variance_log | pair,
+  delta ~ spotvola + latency_median_log + latency_variance_log | pair + sell_side,
   vcov = vcov,
-  data = regression_sample 
+  data = regression_sample
 )
 
 pd_model3 <- feols(
-  delta ~ boundary + boundary_margin.sell | pair,
+  delta ~ boundary + boundary_margin_sell | pair + sell_side,
   vcov = vcov,
-  data = regression_sample 
+  data = regression_sample
 )
 
 pd_model4 <- feols(
-  delta ~ boundary + boundary_business.sell| pair,
+  delta ~ boundary + boundary_business_sell| pair + sell_side,
   vcov = vcov,
-  data = regression_sample 
+  data = regression_sample
 )
 
 pd_model5 <- feols(
@@ -61,7 +62,7 @@ pd_model5 <- feols(
 pd_model6 <- feols(
   delta ~  spotvola + latency_median_log + latency_variance_log + inventory | pair,
   vcov = vcov,
-  data = regression_sample 
+  data = regression_sample
 )
 
 etable(
@@ -83,25 +84,27 @@ etable(
 
 # Cross-Exchange Flows and Arbitrage Opportunities ------------------------
 flows_model1 <- feols(
-  flow_volume_usd ~ 1 | pair| delta ~ spotvola +  latency_median_log + latency_variance_log,
+  flow_volume_usd ~ 1 | pair + sell_side| delta ~ spotvola +  latency_median_log + latency_variance_log,
   vcov = vcov,
-  data = regression_sample
+  data = regression_sample |> 
+    mutate(flow_volume_usd = replace_na(flow_volume_usd, 0))
 )
 
 flows_model2 <- feols(
-  flow_volume_usd ~  1 | pair | delta ~ boundary,
+  flow_volume_usd ~  1 | pair + sell_side| delta ~ boundary,
   vcov = vcov,
-  data = regression_sample
+  data = regression_sample |> 
+    mutate(flow_volume_usd = replace_na(flow_volume_usd, 0))
 )
 
 flows_model3 <- feols(
-  log(flow_volume_usd) ~ 1 | pair | delta ~ spotvola +  latency_median_log + latency_variance_log,
+  log(flow_volume_usd) ~ 1 | pair + sell_side| delta ~ spotvola +  latency_median_log + latency_variance_log,
   vcov = vcov,
   data = regression_sample
 )
 
 flows_model4 <- feols(
-  log(flow_volume_usd) ~  1 | pair| delta ~ boundary,
+  log(flow_volume_usd) ~  1 | pair+ sell_side| delta ~ boundary,
   vcov = vcov,
   data = regression_sample
 )
@@ -126,48 +129,48 @@ etable(
 # Robustness check: Rating, USDT and regional splits
 
 robustness_model1 <- feols( # Ratings
-  delta ~ boundary*aa_rating.sell + inventory + spread | pair,
+  delta ~ boundary*aa_rating_sell + inventory| pair,
   vcov = vcov,
   data = regression_sample 
 )
 
 robustness_model2 <- feols( # Regions
-  delta ~ boundary + inventory + spread | pair,
+  delta ~ boundary + inventory | pair,
   vcov = vcov,
   data = regression_sample |> 
-    filter(region.sell == "USA" & region.buy == "USA")
+    filter(region_sell == "USA" & region_buy == "USA")
 )
 
 robustness_model3 <- feols(
-  delta ~ boundary + inventory + spread| pair,
+  delta ~ boundary + inventory | pair,
   vcov = vcov,
   data = regression_sample |> 
-    filter(region.sell == "Europe" & region.buy == "Europe")
+    filter(region_sell == "Europe" & region_buy == "Europe")
 )
 
 robustness_model4 <- feols(
-  delta ~ boundary+ inventory + spread | pair,
+  delta ~ boundary+ inventory  | pair,
   vcov = vcov,
   data = regression_sample |> 
-    filter((region.sell == "Europe" |region.sell == "USA") & region.buy == region.sell)
+    filter((region_sell == "Europe" |region_sell == "USA") & region_buy == region_sell)
 )
 
 robustness_model5 <- feols( # Tether
-  delta ~ boundary+ inventory + spread | pair,
+  delta ~ boundary+ inventory | pair,
   vcov = vcov,
-  data = regression_sample |> filter(tether.sell == TRUE & tether.buy == tether.sell) 
+  data = regression_sample |> filter(tether_sell == TRUE & tether_buy == tether_sell) 
 )
 
 robustness_model6 <- feols( # Tether
-  delta ~ boundary + inventory + spread| pair,
+  delta ~ boundary + inventory | pair,
   vcov = vcov,
-  data = regression_sample |> filter(tether.sell == FALSE & tether.buy == tether.sell) 
+  data = regression_sample |> filter(tether_sell == FALSE & tether_buy == tether_sell) 
 )
 
 robustness_model7 <- feols( # Tether
-  delta ~ boundary + inventory + spread| pair,
+  delta ~ boundary + inventory | pair,
   vcov = vcov,
-  data = regression_sample |> filter(tether.buy == tether.sell) 
+  data = regression_sample |> filter(tether_buy == tether_sell) 
 )
 
 etable(
