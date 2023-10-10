@@ -8,7 +8,21 @@ library(httr)
 source("_config.R")
 
 # load exchange characteristics
-exchanges <- c("aggregated","binance","bitfinex","bitmex","bitstamp","bittrex","coinbase","coincheck","gemini","hitbtc","huobi","kraken","luno","okex","poloniex")
+exchanges <- c("aggregated", 
+               "binance", 
+               "bitfinex", 
+               "bitmex", 
+               "bitstamp", 
+               "bittrex", 
+               "coinbase", 
+               "coincheck", 
+               "gemini", 
+               "hitbtc", 
+               "huobi", 
+               "kraken", 
+               "luno", 
+               "okex", 
+               "poloniex")
 
 # Glassnode API scrapper
 glassnode_api <- function(field = "transactions/",

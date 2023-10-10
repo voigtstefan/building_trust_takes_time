@@ -77,7 +77,7 @@ spotvolas <- spotvolas %>%
   ungroup() %>%
   select(exchange, ts, spotvola)
 
-# Output available on repo ----
+# Output available on repo spotvolas.rds ----
 write_rds(spotvolas, "data/spotvolas.rds")
 
 # DO NOT RUN summary stats ----

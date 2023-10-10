@@ -8,8 +8,7 @@ regression_sample <- read_rds("data/exchange_pair_hourly_regression_sample.rds")
 regression_sample <- regression_sample |>
   mutate(inventory = log(1 + balance_sell),
          latency_median_log = log(latency_median),
-         latency_variance_log = log(latency_sd^2),
-         week = floor_date(hour, "week"))
+         latency_variance_log = log(latency_sd^2))
 
 # label variables
 dictionary <- c(
@@ -72,7 +71,7 @@ etable(
 )
 
 etable(
-  pd_model1, pd_model2, pd_model3, pd_model4,
+  pd_model1, pd_model2, pd_model3, pd_model4, pd_model5, pd_model6,
   coefstat = "tstat",
   dict = dictionary, 
   tex = TRUE, 
@@ -84,7 +83,7 @@ etable(
 
 # Cross-Exchange Flows and Arbitrage Opportunities ------------------------
 flows_model1 <- feols(
-  flow_volume_usd ~ 1 | pair + sell_side| delta ~ spotvola +  latency_median_log + latency_variance_log,
+  flow_volume_usd ~ 1 | pair + sell_side | delta ~ spotvola +  latency_median_log + latency_variance_log,
   vcov = vcov,
   data = regression_sample |> 
     mutate(flow_volume_usd = replace_na(flow_volume_usd, 0))
@@ -98,15 +97,17 @@ flows_model2 <- feols(
 )
 
 flows_model3 <- feols(
-  log(flow_volume_usd) ~ 1 | pair + sell_side| delta ~ spotvola +  latency_median_log + latency_variance_log,
+  flow_volume ~ 1 | pair + sell_side| delta ~ spotvola +  latency_median_log + latency_variance_log,
   vcov = vcov,
-  data = regression_sample
+  data = regression_sample |>
+    mutate(flow_volume = replace_na(flow_volume, 0))
 )
 
 flows_model4 <- feols(
-  log(flow_volume_usd) ~  1 | pair+ sell_side| delta ~ boundary,
+  flow_volume ~  1 | pair+ sell_side | delta ~ boundary,
   vcov = vcov,
-  data = regression_sample
+  data = regression_sample |>
+    mutate(flow_volume = replace_na(flow_volume, 0))
 )
 
 etable(
@@ -122,7 +123,7 @@ etable(
   dict = dictionary, 
   tex = TRUE, 
   style.tex = style.tex(line.top = "\\toprule", line.bottom = "\\bottomrule"), 
-  headers = list("^:_:\\emph{Dependent Variable}" = c("Exchange Inflows (in 100k USD)", "Exchange Inflows (in 100k USD)", "Log(Exchange Inflows)", "Log(Exchange Inflows)")), 
+  headers = list("^:_:\\emph{Dependent Variable}" = c("Exchange net inflows (in 100k USD)", "Exchange net inflows (in 100k USD)", "Exchange net inflows (in BTC)", "Exchange net inflows (in BTC)")), 
   fitstat=c('n'),
   depvar = FALSE)
 
@@ -181,7 +182,7 @@ etable(
 )
 
 etable(
-  pd_model13, pd_model7, pd_model8, pd_model9, pd_model10, pd_model11, pd_model12,  
+  robustness_model1, robustness_model2, robustness_model3, robustness_model4, robustness_model5, robustness_model6, robustness_model7,  
   coefstat = "tstat",
   dict = dictionary, 
   tex = TRUE, 
