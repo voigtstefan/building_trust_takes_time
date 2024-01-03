@@ -6,3 +6,4 @@
 data/glassnode
 *.rds
 *.csv
+*.sqlite
